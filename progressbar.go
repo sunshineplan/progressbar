@@ -11,6 +11,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/sunshineplan/utils/container"
 	"github.com/sunshineplan/utils/unit"
 )
@@ -39,7 +40,6 @@ type ProgressBar[T int | int64] struct {
 	resetChan chan string
 	start     container.Value[time.Time]
 	last      string
-	lastWidth int
 
 	blockWidth      container.Int[int]
 	refreshInterval container.Int[time.Duration]
@@ -186,9 +186,9 @@ func (pb *ProgressBar[T]) Speed() float64 {
 func (pb *ProgressBar[T]) print(s string, msg bool) {
 	pb.buf.Reset()
 	pb.buf.Grow(200)
-	if len(s) < pb.lastWidth {
+	if lastWidth := runewidth.StringWidth(pb.last); runewidth.StringWidth(s) < lastWidth {
 		pb.buf.WriteRune('\r')
-		pb.buf.WriteString(strings.Repeat(" ", pb.lastWidth))
+		pb.buf.WriteString(strings.Repeat(" ", lastWidth))
 		pb.buf.WriteRune('\r')
 		pb.buf.WriteString(s)
 	} else {
@@ -200,7 +200,6 @@ func (pb *ProgressBar[T]) print(s string, msg bool) {
 		pb.buf.WriteString(pb.last)
 	} else {
 		pb.last = s
-		pb.lastWidth = len(s)
 	}
 	io.WriteString(os.Stdout, pb.buf.String())
 }
