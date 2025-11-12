@@ -275,7 +275,7 @@ func (pb *ProgressBar[T]) startCount() {
 				}
 			}
 			f.Additional = pb.additional.Load()
-			f.Elapsed = fmt.Sprintf("Elapsed: %s", time.Since(pb.start.Load()).Truncate(time.Second))
+			f.Elapsed = fmt.Sprintf("Elapsed: %s", pb.Elapsed().Truncate(time.Second))
 			if speed := pb.Speed(); speed == 0 {
 				f.Speed = "--/s"
 				f.Left = "Left: calculating" + dots[dot%3]
@@ -293,7 +293,7 @@ func (pb *ProgressBar[T]) startCount() {
 			pb.template.Load().Execute(&buf, f)
 			pb.print(buf.String(), false)
 			if now == pb.total {
-				totalSpeed := float64(pb.total) / (float64(time.Since(pb.start.Load())) / float64(time.Second))
+				totalSpeed := float64(pb.total) / (float64(pb.Elapsed()) / float64(time.Second))
 				if pb.unit.Load() == "bytes" {
 					f.Speed = unit.ByteSize(totalSpeed).String() + "/s"
 				} else {
