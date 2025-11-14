@@ -4,7 +4,7 @@ package progressbar
 
 import "golang.org/x/sys/unix"
 
-func GetWinsize() int {
+func getWinsize() int {
 	ws, err := unix.IoctlGetWinsize(0, unix.TIOCGWINSZ)
 	if err != nil {
 		return 0
