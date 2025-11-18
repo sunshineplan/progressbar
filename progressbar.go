@@ -13,6 +13,7 @@ import (
 
 	"github.com/mattn/go-runewidth"
 	"github.com/sunshineplan/utils/container"
+	"github.com/sunshineplan/utils/pool"
 	"github.com/sunshineplan/utils/unit"
 )
 
@@ -27,7 +28,11 @@ var dots = []string{".  ", ".. ", "..."}
 var GetWinsize func() int
 
 func init() {
-	GetWinsize = getWinsize
+	if getWinsize() != 0 {
+		GetWinsize = getWinsize
+	} else {
+		GetWinsize = func() int { return 150 }
+	}
 }
 
 // ProgressBar represents a customizable progress bar for tracking task progress.
@@ -41,12 +46,13 @@ type ProgressBar[T int | int64] struct {
 	msgChan   chan string
 	resetChan chan string
 	start     container.Value[time.Time]
+	dot       int
 	last      string
 
 	blockWidth      container.Int[int]
 	refreshInterval container.Int[time.Duration]
 	renderInterval  container.Int[time.Duration]
-	renderFn        container.Value[func(io.Writer, Frame)]
+	renderFunc      container.Value[func(io.Writer, Frame)]
 	template        atomic.Pointer[template.Template]
 	unit            container.Value[string]
 	additional      container.Value[string]
@@ -127,7 +133,7 @@ func (pb *ProgressBar[T]) SetRenderInterval(interval time.Duration) *ProgressBar
 
 // SetRender sets progress bar render function.
 func (pb *ProgressBar[T]) SetRender(fn func(w io.Writer, f Frame)) error {
-	pb.renderFn.Store(fn)
+	pb.renderFunc.Store(fn)
 	return nil
 }
 
@@ -184,16 +190,54 @@ func (pb *ProgressBar[T]) Speed() float64 {
 	return pb.speed.Load()
 }
 
+var framePool = pool.New[Frame]()
+
+func (pb *ProgressBar[T]) frame() *Frame {
+	now := min(pb.Current(), pb.total)
+	blockWidth := pb.blockWidth.Load()
+	done := int(int64(blockWidth) * now / pb.total)
+	f := framePool.Get()
+	if now < pb.total && done != 0 {
+		f.Done = strings.Repeat("=", done-1) + ">"
+	} else {
+		f.Done = strings.Repeat("=", done)
+	}
+	f.Undone = strings.Repeat(" ", blockWidth-done)
+	f.Percent = float64(now) * 100 / float64(pb.total)
+	if pb.unit.Load() == "bytes" {
+		f.Current = unit.ByteSize(now).String()
+		f.Total = unit.ByteSize(pb.total).String()
+	} else {
+		f.Current = strconv.FormatInt(now, 10)
+		f.Total = strconv.FormatInt(pb.total, 10)
+	}
+	f.Additional = pb.additional.Load()
+	f.Elapsed = pb.Elapsed().Truncate(time.Second)
+	if speed := pb.Speed(); speed == 0 {
+		f.Speed = "--/s"
+		f.Left = "calculating" + dots[pb.dot]
+		pb.dot = (pb.dot + 1) % 3
+	} else {
+		if pb.unit.Load() == "bytes" {
+			f.Speed = fmt.Sprintf("%s/s", unit.ByteSize(speed))
+		} else {
+			f.Speed = fmt.Sprintf("%.2f/s", speed)
+		}
+		f.Left = (time.Duration(float64(pb.total-now)/speed) * time.Second).Truncate(time.Second).String()
+	}
+	return f
+}
+
 func (pb *ProgressBar[T]) render(w io.Writer, f Frame) {
-	if pb.renderFn.Load() != nil {
-		pb.renderFn.Load()(w, f)
+	if pb.renderFunc.Load() != nil {
+		pb.renderFunc.Load()(w, f)
 		return
 	}
 	if pb.template.Load() != nil {
 		pb.template.Load().Execute(w, f)
 		return
 	}
-	defaultRenderFn(w, f)
+	defaultRenderFunc(w, f)
 }
 
 func (pb *ProgressBar[T]) print(winsize int, s string, msg bool) {
@@ -223,19 +267,18 @@ func (pb *ProgressBar[T]) startRefresh() {
 	start := pb.start.Load()
 	ticker := time.NewTicker(pb.refreshInterval.Load())
 	defer ticker.Stop()
+	var last atomic.Int64
 	for {
-		var last int64
 		select {
 		case <-ticker.C:
 			now := pb.Current()
 			totalSpeed := float64(now) / (float64(time.Since(start)) / float64(time.Second))
-			intervalSpeed := float64(now-last) / (float64(pb.refreshInterval.Load()) / float64(time.Second))
+			intervalSpeed := float64(now-last.Swap(now)) / (float64(pb.refreshInterval.Load()) / float64(time.Second))
 			if intervalSpeed == 0 {
 				pb.speed.Store(totalSpeed)
 			} else {
 				pb.speed.Store(intervalSpeed)
 			}
-			last = now
 		case s := <-pb.resetChan:
 			switch s {
 			case "refresh":
@@ -257,7 +300,6 @@ func (pb *ProgressBar[T]) startCount() {
 		close(pb.resetChan)
 		close(pb.msgChan)
 	}()
-	var lastNow int64
 	var f Frame
 	if pb.unit.Load() == "bytes" {
 		f.Total = unit.ByteSize(pb.total).String()
@@ -265,60 +307,29 @@ func (pb *ProgressBar[T]) startCount() {
 		f.Total = strconv.FormatInt(pb.total, 10)
 	}
 	b := new(strings.Builder)
-	var dot int
 	for {
 		select {
 		case <-pb.ticker.C:
-			now := min(pb.Current(), pb.total)
-			if now != lastNow || f.Done == "" {
-				lastNow = now
-				blockWidth := pb.blockWidth.Load()
-				done := int(int64(blockWidth) * now / pb.total)
-				if now < pb.total && done != 0 {
-					f.Done = strings.Repeat("=", done-1) + ">"
-				} else {
-					f.Done = strings.Repeat("=", done)
-				}
-				f.Undone = strings.Repeat(" ", blockWidth-done)
-				f.Percent = float64(now) * 100 / float64(pb.total)
-				if pb.unit.Load() == "bytes" {
-					f.Current = unit.ByteSize(now).String()
-				} else {
-					f.Current = strconv.FormatInt(now, 10)
-				}
-			}
-			f.Additional = pb.additional.Load()
-			f.Elapsed = pb.Elapsed().Truncate(time.Second)
-			if speed := pb.Speed(); speed == 0 {
-				f.Speed = "--/s"
-				f.Left = "calculating" + dots[dot%3]
-				dot++
-			} else {
-				if pb.unit.Load() == "bytes" {
-					f.Speed = unit.ByteSize(speed).String() + "/s"
-				} else {
-					f.Speed = fmt.Sprintf("%.2f/s", speed)
-				}
-				f.Left = (time.Duration(float64(pb.total-now)/speed) * time.Second).Truncate(time.Second).String()
-			}
+			f := pb.frame()
 			b.Reset()
 			winsize := GetWinsize()
 			b.Grow(winsize)
-			pb.render(b, f)
+			pb.render(b, *f)
 			pb.print(winsize, b.String(), false)
-			if now == pb.total {
+			if f.Percent == 100 {
 				totalSpeed := float64(pb.total) / (float64(pb.Elapsed()) / float64(time.Second))
 				if pb.unit.Load() == "bytes" {
-					f.Speed = unit.ByteSize(totalSpeed).String() + "/s"
+					f.Speed = fmt.Sprintf("%s/s", unit.ByteSize(totalSpeed))
 				} else {
 					f.Speed = fmt.Sprintf("%.2f/s", totalSpeed)
 				}
 				b.Reset()
-				pb.render(b, f)
+				pb.render(b, *f)
 				pb.print(winsize, b.String(), false)
 				io.WriteString(os.Stdout, "\n")
 				return
 			}
+			framePool.Put(f)
 		case msg := <-pb.msgChan:
 			pb.print(GetWinsize(), msg, true)
 		case <-pb.ctx.Done():

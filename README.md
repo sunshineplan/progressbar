@@ -65,7 +65,7 @@ func main() {
 }
 ```
 
-## Default Template
+## Default Full Template
 
 ```text
 [{{.Done}}{{.Undone}}]  {{.Speed}}  {{.Current}} ({{.Percent}}) of {{.Total}}{{if .Additional}} [{{.Additional}}]{{end}}  {{.Elapsed}}  {{.Left}}
@@ -94,10 +94,10 @@ Available fields:
 | `{{.Speed}}`     | Current speed (auto-unit)                |
 | `{{.Current}}`   | Current value (formatted)                |
 | `{{.Total}}`     | Total value (formatted)                  |
-| `{{.Percent}}`   | Percentage with 2 decimals               |
+| `{{.Percent}}`   | Percentage                               |
 | `{{.Additional}}`| Custom additional text                   |
 | `{{.Elapsed}}`   | Time elapsed                             |
-| `{{.Left}}`      | Estimated time remaining or "Complete"   |
+| `{{.Left}}`      | Estimated time remaining                 |
 
 ### Byte Downloads (with io.Reader)
 
@@ -135,6 +135,7 @@ pb := progressbar.New[T int|int64](total T) *ProgressBar[T]
 pb.SetWidth(width int)
 pb.SetRefreshInterval(d time.Duration) // speed calculation interval
 pb.SetRenderInterval(d time.Duration)  // UI refresh rate
+pb.SetRender(fn func(w io.Writer, f Frame)) error
 pb.SetTemplate(tmplt string) error
 pb.SetUnit(unit string)               // "bytes" enables ByteSize, otherwise numeric
 
