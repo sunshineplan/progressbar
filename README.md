@@ -65,11 +65,7 @@ func main() {
 }
 ```
 
-## Default Full Template
-
-```text
-[{{.Done}}{{.Undone}}]  {{.Speed}}  {{.Current}} ({{.Percent}}) of {{.Total}}{{if .Additional}} [{{.Additional}}]{{end}}  {{.Elapsed}}  {{.Left}}
-```
+## Default Render
 
 Example output:
 
