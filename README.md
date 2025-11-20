@@ -65,39 +65,33 @@ func main() {
 }
 ```
 
-## Default Template
-
-```text
-[{{.Done}}{{.Undone}}]  {{.Speed}}  {{.Current}} ({{.Percent}}) of {{.Total}}{{if .Additional}} [{{.Additional}}]{{end}}  {{.Elapsed}}  {{.Left}}
-```
-
-Example output:
+## Beautiful Adaptive Output (example)
 
 ```
-[=========================>                   ]  12.34 MB/s  567.89 MB (56.79%) of 1 GB [processing chunk 42]  Elapsed: 45s  Left: 36s
+[=========================>                  ]  15.67 MB/s  784.20 MB(78.42%) of 1.00 GB [downloading chunk 89]  Elapsed: 50s  Left: 14s
 ```
+
+When terminal is narrow, it gracefully degrades to shorter formats, and finally to just the bar + additional text.
 
 ## Customization
 
-### Change Template
+### Custom Render Function (Recommended)
 
 ```go
-pb.SetTemplate(`[{{.Done}}{{.Undone}}] {{.Percent}} | {{.Speed}} | {{.Elapsed}} | {{.Left}}`)
+pb.SetRender(func(w io.Writer, f progressbar.Frame) {
+    fmt.Fprintf(w, "[%s] %.1f%% %s/s",
+        progressbar.Bar(f.Current, f.Total, f.BarWidth),
+        progressbar.Percent(f.Current, f.Total),
+        progressbar.Speed(f.Speed, f.Unit),
+    )
+})
 ```
 
-Available fields:
+### Or Custom Template (Advanced)
 
-| Field        | Description                              |
-|--------------|------------------------------------------|
-| `{{.Done}}`      | Completed bar (`=`)                      |
-| `{{.Undone}}`    | Remaining bar (` `)                      |
-| `{{.Speed}}`     | Current speed (auto-unit)                |
-| `{{.Current}}`   | Current value (formatted)                |
-| `{{.Total}}`     | Total value (formatted)                  |
-| `{{.Percent}}`   | Percentage with 2 decimals               |
-| `{{.Additional}}`| Custom additional text                   |
-| `{{.Elapsed}}`   | Time elapsed                             |
-| `{{.Left}}`      | Estimated time remaining or "Complete"   |
+```go
+pb.SetTemplate(template.Must(template.New("").Funcs(progressbar.DefaultFuncMap()).Parse(`[{{bar .Current .Total .BarWidth}}] {{percent .Current .Total | printf "%.1f%%"}} {{speed .Speed .Unit}}`)))
+```
 
 ### Byte Downloads (with io.Reader)
 
@@ -135,7 +129,8 @@ pb := progressbar.New[T int|int64](total T) *ProgressBar[T]
 pb.SetWidth(width int)
 pb.SetRefreshInterval(d time.Duration) // speed calculation interval
 pb.SetRenderInterval(d time.Duration)  // UI refresh rate
-pb.SetTemplate(tmplt string) error
+pb.SetRender(fn func(w io.Writer, f Frame)) error
+pb.SetTemplate(t *template.Template) error
 pb.SetUnit(unit string)               // "bytes" enables ByteSize, otherwise numeric
 
 // Runtime
@@ -152,6 +147,13 @@ pb.Cancel()
 
 // io.Reader helper
 pb.FromReader(r io.Reader, w io.Writer) (written int64, err error)
+
+// template helper functions
+progressbar.Bar(current, total int64, width int) string
+progressbar.Format(n int64, unit string) string
+progressbar.Percent(current, total int64) float64
+progressbar.Speed(v float64, unit string) string
+progressbar.Left(current, total int64, speed float64) time.Duration
 ```
 
 
