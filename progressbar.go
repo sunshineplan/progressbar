@@ -132,11 +132,7 @@ func (pb *ProgressBar[T]) SetRender(fn func(w io.Writer, f Frame)) error {
 }
 
 // SetTemplate sets progress bar template.
-func (pb *ProgressBar[T]) SetTemplate(tmplt string) error {
-	t := template.New("ProgressBar")
-	if _, err := t.Parse(tmplt); err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
-	}
+func (pb *ProgressBar[T]) SetTemplate(t *template.Template) error {
 	if err := t.Execute(io.Discard, Frame{}); err != nil {
 		return fmt.Errorf("failed to execute template: %w", err)
 	}

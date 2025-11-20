@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
+	"text/template"
 	"time"
 )
 
@@ -110,10 +111,12 @@ func TestFromReader(t *testing.T) {
 
 func TestSetTemplate(t *testing.T) {
 	pb := &ProgressBar[int]{}
-	if err := pb.SetTemplate(`{{.Current}}`); err != nil {
+	tmpl := template.Must(template.New("").Parse("{{.Current}}"))
+	if err := pb.SetTemplate(tmpl); err != nil {
 		t.Error(err)
 	}
-	if err := pb.SetTemplate(`{{.Test}}`); err == nil {
+	tmpl = template.Must(template.New("").Parse("{{.Test}}"))
+	if err := pb.SetTemplate(tmpl); err == nil {
 		t.Error("expected non-nil error; got nil error")
 	}
 }

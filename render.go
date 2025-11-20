@@ -51,60 +51,78 @@ var (
 	dots = []string{".  ", ".. ", "..."}
 )
 
-var defaultFuncMap = template.FuncMap{
-	"bar": func(current, total int64, barWidth int) string {
-		if current == total {
-			return strings.Repeat("=", barWidth)
-		} else {
-			if done := int(float64(barWidth) * float64(current) / float64(total)); done != 0 {
-				return strings.Repeat("=", done-1) + ">" + strings.Repeat(" ", barWidth-done)
-			}
-			return strings.Repeat(" ", barWidth)
+// Bar generates a textual progress bar representation based on the current progress.
+func Bar(current, total int64, barWidth int) string {
+	if current == total {
+		return strings.Repeat("=", barWidth)
+	} else {
+		if done := int(float64(barWidth) * float64(current) / float64(total)); done != 0 {
+			return strings.Repeat("=", done-1) + ">" + strings.Repeat(" ", barWidth-done)
 		}
-	},
-	"calc": func() string {
-		return "calculating" + dots[dot.Add(1)%3]
-	},
-	"count": func(n int64, t string) string {
-		if t == "bytes" {
-			return unit.ByteSize(n).String()
-		} else {
-			return strconv.FormatInt(n, 10)
-		}
-	},
-	"left": func(current, total int64, speed float64) time.Duration {
-		return (time.Duration(float64(total-current)/speed) * time.Second).Truncate(time.Second)
-	},
-	"percent": func(current, total int64) float64 {
-		return float64(current) * 100 / float64(total)
-	},
-	"speed": func(speed float64, t string) string {
-		if speed == 0 {
-			return "--/s"
-		} else if t == "bytes" {
-			return fmt.Sprintf("%s/s", unit.ByteSize(speed))
-		} else {
-			return fmt.Sprintf("%.2f/s", speed)
-		}
-	},
+		return strings.Repeat(" ", barWidth)
+	}
+}
+
+// Format formats the given number n according to the specified type t.
+func Format(n int64, t string) string {
+	if t == "bytes" {
+		return unit.ByteSize(n).String()
+	} else {
+		return strconv.FormatInt(n, 10)
+	}
+}
+
+// Left estimates the remaining time to complete the progress bar based on the current speed.
+func Left(current, total int64, speed float64) time.Duration {
+	return (time.Duration(float64(total-current)/speed) * time.Second).Truncate(time.Second)
+}
+
+// Percent calculates the completion percentage of the progress bar.
+func Percent(current, total int64) float64 {
+	return float64(current) * 100 / float64(total)
+}
+
+// Speed formats the speed of progress per second, adapting the output based on the specified unit type.
+func Speed(speed float64, t string) string {
+	if speed == 0 {
+		return "--/s"
+	} else if t == "bytes" {
+		return fmt.Sprintf("%s/s", unit.ByteSize(speed))
+	} else {
+		return fmt.Sprintf("%.2f/s", speed)
+	}
+}
+
+// DefaultFuncMap returns the default template function map for progress bar rendering.
+func DefaultFuncMap() template.FuncMap {
+	return template.FuncMap{
+		"bar": Bar,
+		"calc": func() string {
+			return "calculating" + dots[dot.Add(1)%3]
+		},
+		"format":  Format,
+		"left":    Left,
+		"percent": Percent,
+		"speed":   Speed,
+	}
 }
 
 func init() {
 	t := template.New("")
-	t.Funcs(defaultFuncMap)
+	t.Funcs(DefaultFuncMap())
 	defaultTemplate =
 		template.Must(
 			template.Must(
 				template.Must(
 					template.Must(
 						t.New("full").Parse(
-							`[{{bar .Current .Total .BarWidth}}]  {{speed .Speed .Unit}}  {{count .Current .Unit}}({{percent .Current .Total | printf "%.2f%%"}}) of {{count .Total .Unit}}{{if .Additional}} [{{.Additional}}]{{end}}  Elapsed: {{.Elapsed }}  {{if eq .Current .Total}}Complete{{else}}Left: {{if eq .Speed 0.0}}{{calc}}{{else}}{{left .Current .Total .Speed}}{{end}}{{end}} `,
+							`[{{bar .Current .Total .BarWidth}}]  {{speed .Speed .Unit}}  {{format .Current .Unit}}({{percent .Current .Total | printf "%.2f%%"}}) of {{format .Total .Unit}}{{if .Additional}} [{{.Additional}}]{{end}}  Elapsed: {{.Elapsed }}  {{if eq .Current .Total}}Complete{{else}}Left: {{if eq .Speed 0.0}}{{calc}}{{else}}{{left .Current .Total .Speed}}{{end}}{{end}} `,
 						),
 					).New("standard").Parse(
-						`[{{bar .Current .Total .BarWidth}}] {{speed .Speed .Unit}} {{count .Current .Unit}}/{{count .Total .Unit}}({{percent .Current .Total | printf "%.1f%%"}}){{if .Additional}} [{{.Additional}}]{{end}} ET: {{.Elapsed}} {{if eq .Current .Total}}Done{{else}}LT: {{if eq .Speed 0.0}}{{calc}}{{else}}{{left .Current .Total .Speed}}{{end}}{{end}} `,
+						`[{{bar .Current .Total .BarWidth}}] {{speed .Speed .Unit}} {{format .Current .Unit}}/{{format .Total .Unit}}({{percent .Current .Total | printf "%.1f%%"}}){{if .Additional}} [{{.Additional}}]{{end}} ET: {{.Elapsed}} {{if eq .Current .Total}}Done{{else}}LT: {{if eq .Speed 0.0}}{{calc}}{{else}}{{left .Current .Total .Speed}}{{end}}{{end}} `,
 					),
 				).New("lite").Parse(
-					`[{{bar .Current .Total .BarWidth}}] {{speed .Speed .Unit}} {{count .Current .Unit}}/{{count .Total .Unit}}{{if .Additional}} [{{.Additional}}]{{end}} {{if eq .Current .Total}}E: {{.Elapsed}}{{else}}L: {{if eq .Speed 0.0}}{{calc}}{{else}}{{left .Current .Total .Speed}}{{end}}{{end}} `,
+					`[{{bar .Current .Total .BarWidth}}] {{speed .Speed .Unit}} {{format .Current .Unit}}/{{format .Total .Unit}}{{if .Additional}} [{{.Additional}}]{{end}} {{if eq .Current .Total}}E: {{.Elapsed}}{{else}}L: {{if eq .Speed 0.0}}{{calc}}{{else}}{{left .Current .Total .Speed}}{{end}}{{end}} `,
 				),
 			).New("mini").Parse(
 				`[{{bar .Current .Total .BarWidth}}] {{.Additional}} `,
