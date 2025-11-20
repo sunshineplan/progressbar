@@ -12,13 +12,12 @@ import (
 
 	"github.com/mattn/go-runewidth"
 	"github.com/sunshineplan/utils/container"
-	"github.com/sunshineplan/utils/pool"
 )
 
 const (
-	defaultBlockWidth = 40
-	defaultRefresh    = 5 * time.Second
-	defaultRender     = time.Second
+	defaultBarWidth = 40
+	defaultRefresh  = 5 * time.Second
+	defaultRender   = time.Second
 )
 
 var GetWinsize func() int
@@ -44,7 +43,7 @@ type ProgressBar[T int | int64] struct {
 	start     container.Value[time.Time]
 	last      string
 
-	blockWidth      container.Int[int]
+	barWidth        container.Int[int]
 	refreshInterval container.Int[time.Duration]
 	renderInterval  container.Int[time.Duration]
 	renderFunc      container.Value[func(io.Writer, Frame)]
@@ -72,18 +71,18 @@ func New[T int | int64](total T) *ProgressBar[T] {
 	}
 }
 
-// SetWidth sets the progress bar block width.
-// If blockWidth is less than or equal to zero, it logs an error message and does not change the width.
-func (pb *ProgressBar[T]) SetWidth(blockWidth int) *ProgressBar[T] {
-	if blockWidth <= 0 {
-		msg := fmt.Sprintf("invalid block width: %d", blockWidth)
+// SetWidth sets the progress bar width.
+// If barWidth is less than or equal to zero, it logs an error message and does not change the width.
+func (pb *ProgressBar[T]) SetWidth(barWidth int) *ProgressBar[T] {
+	if barWidth <= 0 {
+		msg := fmt.Sprintf("invalid bar width: %d", barWidth)
 		if pb.msgChan != nil {
 			pb.msgChan <- msg
 		} else {
 			fmt.Println(msg)
 		}
 	} else {
-		pb.blockWidth.Store(blockWidth)
+		pb.barWidth.Store(barWidth)
 	}
 	return pb
 }
@@ -185,35 +184,6 @@ func (pb *ProgressBar[T]) Speed() float64 {
 	return pb.speed.Load()
 }
 
-var framePool = pool.New[Frame]()
-
-func (pb *ProgressBar[T]) frame() (*Frame, bool) {
-	now := min(pb.Current(), pb.total)
-	blockWidth := pb.blockWidth.Load()
-	done := int(int64(blockWidth) * now / pb.total)
-	f := framePool.Get()
-	f.Unit = pb.unit.Load()
-	if now < pb.total && done != 0 {
-		f.Done = strings.Repeat("=", done-1) + ">"
-	} else {
-		f.Done = strings.Repeat("=", done)
-	}
-	f.Undone = strings.Repeat(" ", blockWidth-done)
-	f.Percent = float64(now) * 100 / float64(pb.total)
-	f.Current = now
-	f.Total = pb.total
-	f.Additional = pb.additional.Load()
-	f.Elapsed = pb.Elapsed().Truncate(time.Second)
-	f.Left = 0
-	if now == pb.total {
-		f.Speed = float64(pb.total) / (float64(pb.Elapsed()) / float64(time.Second))
-	} else {
-		f.Speed = pb.Speed()
-		f.Left = (time.Duration(float64(pb.total-now)/f.Speed) * time.Second).Truncate(time.Second)
-	}
-	return f, now == pb.total
-}
-
 func (pb *ProgressBar[T]) render(w io.Writer, f Frame) {
 	if pb.renderFunc.Load() != nil {
 		pb.renderFunc.Load()(w, f)
@@ -290,13 +260,13 @@ func (pb *ProgressBar[T]) startCount() {
 	for {
 		select {
 		case <-pb.ticker.C:
-			f, done := pb.frame()
+			f := pb.frame()
 			b.Reset()
 			winsize := GetWinsize()
 			b.Grow(winsize)
 			pb.render(b, *f)
 			pb.print(winsize, b.String(), false)
-			if done {
+			if f.Current == f.Total {
 				io.WriteString(os.Stdout, "\n")
 				return
 			}
@@ -315,8 +285,8 @@ func (pb *ProgressBar[T]) Start() error {
 	if !pb.start.Load().IsZero() {
 		return fmt.Errorf("progress bar is already started")
 	}
-	if pb.blockWidth.Load() == 0 {
-		pb.blockWidth.Store(defaultBlockWidth)
+	if pb.barWidth.Load() == 0 {
+		pb.barWidth.Store(defaultBarWidth)
 	}
 	if pb.renderInterval.Load() == 0 {
 		pb.renderInterval.Store(defaultRender)

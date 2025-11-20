@@ -110,7 +110,7 @@ func TestFromReader(t *testing.T) {
 
 func TestSetTemplate(t *testing.T) {
 	pb := &ProgressBar[int]{}
-	if err := pb.SetTemplate(`{{.Done}}`); err != nil {
+	if err := pb.SetTemplate(`{{.Current}}`); err != nil {
 		t.Error(err)
 	}
 	if err := pb.SetTemplate(`{{.Test}}`); err == nil {
