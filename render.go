@@ -47,9 +47,14 @@ func (pb *ProgressBar[T]) frame() *Frame {
 var defaultTemplate *template.Template
 
 var (
-	dot  atomic.Int64
-	dots = []string{".  ", ".. ", "..."}
+	spinner      = [10]string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	spinnerIndex atomic.Int64
 )
+
+// Spin returns the next frame of the spinner animation.
+func Spin() string {
+	return spinner[spinnerIndex.Add(1)%10]
+}
 
 // Bar generates a textual progress bar representation based on the current progress.
 func Bar(current, total int64, barWidth int) string {
@@ -98,7 +103,7 @@ func DefaultFuncMap() template.FuncMap {
 	return template.FuncMap{
 		"bar": Bar,
 		"calc": func() string {
-			return "calculating" + dots[dot.Add(1)%3]
+			return "calculating" + Spin()
 		},
 		"format":  Format,
 		"left":    Left,

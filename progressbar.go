@@ -17,7 +17,7 @@ import (
 const (
 	defaultBarWidth = 40
 	defaultRefresh  = 5 * time.Second
-	defaultRender   = time.Second
+	defaultRender   = 500 * time.Millisecond
 )
 
 var GetWinsize func() int

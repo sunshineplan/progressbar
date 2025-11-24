@@ -149,6 +149,7 @@ pb.Cancel()
 pb.FromReader(r io.Reader, w io.Writer) (written int64, err error)
 
 // template helper functions
+progressbar.Spin() string
 progressbar.Bar(current, total int64, width int) string
 progressbar.Format(n int64, unit string) string
 progressbar.Percent(current, total int64) float64

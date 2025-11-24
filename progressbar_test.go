@@ -47,11 +47,11 @@ func TestMessage(t *testing.T) {
 	go func() {
 		i := 0
 		for {
+			time.Sleep(500 * time.Millisecond)
 			select {
 			case <-stopCh:
 				return
 			default:
-				time.Sleep(500 * time.Millisecond)
 				if err := pb.Message(fmt.Sprintf("test messages (%d)", i)); err != nil {
 					errCh <- err
 					return
@@ -60,9 +60,11 @@ func TestMessage(t *testing.T) {
 			i++
 		}
 	}()
-	for range pb.total {
+	for i := range pb.total {
+		if i != 0 {
+			time.Sleep(time.Second)
+		}
 		pb.Add(1)
-		time.Sleep(time.Second)
 	}
 	pb.Wait()
 	close(stopCh)
@@ -80,13 +82,15 @@ func TestCancel(t *testing.T) {
 	pb := New(15).SetRefreshInterval(4 * time.Second)
 	pb.Start()
 	go func() {
-		time.Sleep(3 * time.Second)
+		time.Sleep(3500 * time.Millisecond)
 		pb.Cancel()
 	}()
 	go func() {
-		for range pb.total {
+		for i := range pb.total {
+			if i != 0 {
+				time.Sleep(time.Second)
+			}
 			pb.Add(1)
-			time.Sleep(time.Second)
 		}
 	}()
 	pb.Wait()
