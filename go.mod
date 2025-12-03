@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/mattn/go-runewidth v0.0.19
-	github.com/sunshineplan/utils v0.1.82
+	github.com/sunshineplan/utils v0.1.83
 	golang.org/x/sys v0.38.0
 )
 
