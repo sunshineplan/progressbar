@@ -1,10 +1,10 @@
 module github.com/sunshineplan/progressbar
 
-go 1.25
+go 1.26
 
 require (
 	github.com/mattn/go-runewidth v0.0.19
-	github.com/sunshineplan/utils v0.1.83
+	github.com/sunshineplan/utils v0.1.84
 	golang.org/x/sys v0.41.0
 )
 
