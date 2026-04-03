@@ -3,7 +3,7 @@ module github.com/sunshineplan/progressbar
 go 1.26
 
 require (
-	github.com/mattn/go-runewidth v0.0.21
+	github.com/mattn/go-runewidth v0.0.22
 	github.com/sunshineplan/utils v0.1.84
 	golang.org/x/sys v0.42.0
 )
