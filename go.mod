@@ -5,7 +5,7 @@ go 1.26
 require (
 	github.com/mattn/go-runewidth v0.0.24
 	github.com/sunshineplan/utils v0.1.85
-	golang.org/x/sys v0.46.0
+	golang.org/x/sys v0.47.0
 )
 
 require github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
